@@ -1,0 +1,117 @@
+version: '3.7'
+
+services:
+
+#  klm_amadeus:
+#    image: klm_amadeus:latest
+#    environment:
+#      API_SERVER_HOST: klm_amadeus
+#      POSTGRES_DB: klmdb
+#      POSTGRES_PASSWORD: klmdb
+#      POSTGRES_USER: klmdb
+#      POSTGRES_SERVER_NAME: klmdb
+#      POSTGRES_SERVER_PORT: 5432
+#    restart: always
+#    ports:
+#      - "8089:8089"
+#    depends_on:
+#      - klmdb
+
+  klmdb:
+    image: 'postgres:12.2'
+    restart: always
+    container_name: klm_db
+    env_file:
+      - ./klm.env
+    ports:
+      - '5435:5432'
+    volumes:
+      - 'klm-data:/var/lib/klm_db/data'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U klmdb
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis
+    restart: always
+    container_name: klm_redis
+    ports:
+      - '6379:6379'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - 'klm-redis:/var/lib/redis/data'
+
+  klmtestdb:
+    image: 'postgres:12.2'
+    restart: always
+    container_name: klm_test_db
+    env_file:
+      - ./klm.env
+    ports:
+      - '5436:5432'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U klmdb
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  klmpgadmin:
+    image: 'dpage/pgadmin4:5.7'
+    container_name: klm_pgadmin
+    restart: always
+    ports:
+      - '8005:80'
+    volumes:
+      - 'klm-pgadmin:/var/lib/klm_pgadmin'
+      - './servers.json:/pgadmin4/servers.json'
+    environment:
+      PGADMIN_DEFAULT_EMAIL: root@root.com
+      PGADMIN_DEFAULT_PASSWORD: root
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    hostname: pgadmin
+    depends_on:
+      - klmdb
+
+  prometheus:
+    image: 'prom/prometheus:v2.31.1'
+    volumes:
+      - './monitoring/prometheus/:/etc/prometheus/'
+      - 'prometheus-data:/prometheus'
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - '9090:9090'
+    restart: always
+
+  grafana:
+    image: 'grafana/grafana:8.3.2'
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USERNAME=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - 'grafana-data:/var/lib/grafana'
+      - './monitoring/grafana/provisioning/:/etc/grafana/provisioning/'
+    ports:
+      - '3000:3000'
+
+
+volumes:
+  klm-data: { }
+  klm-redis: { }
+  klm-test-data: { }
+  klm-pgadmin: { }
+  prometheus-data: { }
+  grafana-data: { }
+  elasticsearch-data: { }
